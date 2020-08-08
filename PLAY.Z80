@@ -1,8 +1,16 @@
 ;===============================================================================
-; TUNE - Play PT2/PT3/MYM sound files
-;
+; PLAY  PT2/PT3/MYM sound files
 ;===============================================================================
 ;
+;	Play Tune for CP/M
+;	Designed for RC2014 YM/AY Sound Card created by Ed Brindley
+;	Plain CP/M version based on RomWBW "Tune"
+;	Ported by Andrzej Borsuk <red@szsz.pl>
+;
+;	CPU speed and IO ports are hardcoded 
+;
+;
+;	Original RomWBW Tune Player
 ;	Author:  Wayne Warthen (wwarthen@gmail.com)
 ;
 ;	This application is basically just a RomWBW wrapper for the
@@ -39,10 +47,10 @@
 ;   2019-11-21 [WBW] Added table-driven configuration
 ;   2020-02-11 [WBW] Made hardware config & detection more flexible
 ;   2020-03-29 [WBW] Fix error in Z180 I/O W/S bracketing
+;   2020-08-07 [CPM] Butchered HBIOS calls and related code
 ;_______________________________________________________________________________
 ;
 ; ToDo:
-;   *) Remove HBIOS deps
 ;   *) Make it configurable
 ;_______________________________________________________________________________
 ;
@@ -53,14 +61,6 @@
 RESTART		EQU	000000h		; CP/M restart vector
 BDOS		EQU	000005h		; BDOS invocation vector
 ;	
-IDENT		EQU	00FFFEh		; loc of RomWBW HBIOS ident ptr
-;	
-RMJ		EQU	3		; intended CBIOS version - major
-RMN		EQU	0		; intended CBIOS version - minor
-;
-BF_SYSVER	EQU	00F1h		; BIOS: VER function
-BF_SYSGET	EQU	00F8h		; HBIOS: SYSGET function
-;
 FCB		EQU	005Ch		; Location of default FCB
 ;
 HEAPEND		EQU	00A000h		; End of heap storage
@@ -70,98 +70,17 @@ TYPPT3		EQU	2		; FILTYP value for PT3 sound file
 TYPMYM		EQU	3		; FILTYP value for MYM sound file
 ;
 ;
-;
 	ORG	000100h
 ;
 	CALL	CRLF
 	LD	DE,MSGBAN		; Point to banner message
 	CALL	PRTSTR			; Print message
 ;		
-	; Check BIOS and version	
-	CALL	IDBIO			; Identify hardware BIOS
-	CP	1			; RomWBW HBIOS?
-	JP	NZ,ERRBIO		; If not, handle BIOS error
-	LD	A,RMJ << 4 | RMN	; Expected HBIOS ver
-	CP	D			; Compare with result above
-	JP	NZ,ERRBIO		; Handle BIOS error
-	LD	A,L			; Platform id to A
-	LD	(CURPLT),A		; Save as current platform id
-;
-	LD	HL,CFGTBL		; Point to start of config table
+; Check BIOS and version REMOVED!
 CFGSEL:
-	LD	A,00FFh			; End of table marker
-	CP	(HL)			; Compare
-	JP	Z,ERRHW			; Bail out if no more configs to try
-;
-	LD	BC,CFGSIZ		; Size of one entry
-	LD	DE,CFG			; Active config structure
-	LDIR				; Update active config structure
-;
-	LD	A,(CURPLT)		; Get current running platform id
-	LD	E,A			; Put in E
-	LD	A,(PLT)			; Get platform id of loaded config
-	CP	E			; Equal?
-	JR	NZ,CFGSEL		; If no match keep trying
-;
-	; Activate card if applicable
-	CALL	SLOWIO			; Slow down I/O now
-	LD	A,(ACR)			; Get ACR port address (if any)
-	INC	A			; 00FFh -> 0000h & set flags
-	JR	Z,PROBE			; Skip ahead to probe if no ACR
-	DEC	A			; Restore real ACR port address
-	LD	C,A			; Put in C for I/O
-	LD	A,00FFh			; Value to activate card
-	OUT	(C),A			; Write value to ACR
-;	
-PROBE:
-	; Test for hardware (sound chip detection)
-	LD	DE,(PORTS)		; D := RDAT, E := RSEL
-	LD	C,E			; Port = RSEL
-	LD	A,2			; Register 2
-	OUT	(C),A			; Select register 2
-	LD	C,D			; Port = RDAT
-	LD	A,00AAh			; Value = 00AAh
-	OUT	(C),A			; Write 00AAh to register 2
-	LD	A,(RIN)			; Port = RIN
-	LD	C,A			; ... to C
-	IN	A,(C)			; Read back value in register 2
-	CP	00AAh			; Value as written?
-	PUSH	AF			; Save AF
-	CALL	NORMIO			; Back to normal I/O speeds
-	POP	AF			; Recover AF
-	JR	Z,MAT			; Hardware matched!
-	JR	CFGSEL			; And keep trying
-;
-MAT:
-	; Hardware matched!
-	CALL	CRLF			; Formatting
-	LD	DE,(DESC)		; Load hardware description pointer
-	CALL	PRTSTR			; Print description
-;
-	; Test for timer running to determine if it can be used for delay
-	LD	B,BF_SYSGET		; HBIOS: GET function
-	LD	C,00D0h			; TIMER subfunction
-	RST	08			; DE:HL := current tick count
-	LD	A,L			; DE:HL == 0?
-	OR	H	
-	OR	E	
-	OR	D	
-	LD	A,0			; Assume no timer
-	LD	DE,MSGDLY		; Delay mode msg
-	JR	Z,SETDLY		; If tick count is zero, no timer active
-	LD	A,00FFh			; Value for timer active
-	LD	DE,MSGTIM		; Timer mode msg
 SETDLY:	
-	LD	(WMOD),A		; Save wait mode
-	CALL	PRTSTR			; Print it
-;
-	; Get CPU speed & type from RomWBW HBIOS and compute quark delay factor
-	LD	B,00F8h			; HBIOS SYSGET function 0xF8
-	LD	C,00F0h			; CPUINFO subfunction 0xF0
-	RST	08			; Do it, DE := CPU speed in KHz
-	SRL	D			; Divide by 2
-	RR	E			; ... for delay factor
-	EX	DE,HL			; Move result to HL
+	; CPU speed / compute quark delay factor
+	LD	HL, 7372/2		; Do it, CPU speed in KHz / 2
 	LD	(QDLY),HL		; Save result as quark delay factor
 ;
 	; Clear heap storage
@@ -334,26 +253,7 @@ EXIT	CALL	START+8			; Mute audio
 ; Delay loop requires QDLY to be pre-set to to achieve 
 ; optimal 20ms wait time.
 ;
-WAITQ	LD	A,(WMOD)		; Get delay mode
-	OR	A			; Set flags
-	JR	Z,DLY			; Delay mode
-;		
-	; Timer loop	
-	CALL	TIM2			; Read timer LSB into A
-	LD	C,A			; Init prev value
-TIM1	PUSH	BC			; Save prev value
-	CALL	TIM2			; Read timer LSB into A
-	POP	BC			; Recover prev value
-	CP	C			; Compare to prev
-	RET	NZ			; Done if changed
-	JR	TIM1			; Else, loop
-;	
-TIM2	LD	B,00F8h			; BIOS SYSGET function
-	LD	C,00D0h			; TIMER sub-function
-	RST	08			; Call BIOS
-	LD	A,L			; MSB to A
-	RET				; Return to loop
-;	
+WAITQ:
 	; Delay spin loop (40 tstates per loop)
 DLY	LD	BC,(QDLY)		; Load quark delay factor
 DLY1	DEC	BC              	; [6]
@@ -373,116 +273,6 @@ GETKEY	LD	C,6		; BDOS direct I/O
 	CALL	BDOS		; Call BDOS
 	OR	A		; Set flags, Z set if no key
 	RET			; Done
-;
-; Identify active BIOS.  RomWBW HBIOS=1, UNA UBIOS=2, else 0
-;
-IDBIO:
-;
-	; Check for UNA (UBIOS)
-	LD	A,(00FFFDh)	; fixed location of UNA API vector
-	CP	00C3h		; jp instruction?
-	JR	NZ,IDBIO1	; if not, not UNA
-	LD	HL,(00FFFEh)	; get jp address
-	LD	A,(HL)		; get byte at target address
-	CP	00FDh		; first byte of UNA push ix instruction
-	JR	NZ,IDBIO1	; if not, not UNA
-	INC	HL		; point to next byte
-	LD	A,(HL)		; get next byte
-	CP	00E5h		; second byte of UNA push ix instruction
-	JR	NZ,IDBIO1	; if not, not UNA, check others
-;
-	LD	BC,0004FAh	; UNA: get BIOS date and version
-	RST	08		; DE := ver, HL := date
-;
-	LD	A,2		; UNA BIOS id = 2
-	RET			; and done
-;
-IDBIO1:
-	; Check for RomWBW (HBIOS)
-	LD	HL,(00FFFEh)	; HL := HBIOS ident location
-	LD	A,'W'		; First byte of ident
-	CP	(HL)		; Compare
-	JR	NZ,IDBIO2	; Not HBIOS
-	INC	HL		; Next byte of ident
-	LD	A,~'W'		; Second byte of ident
-	CP	(HL)		; Compare
-	JR	NZ,IDBIO2	; Not HBIOS
-;
-	LD	B,BF_SYSVER	; HBIOS: VER function
-	LD	C,0		; required reserved value
-	RST	08		; DE := version, L := platform id
-;	
-	LD	A,1		; HBIOS BIOS id = 1
-	RET			; and done
-;
-IDBIO2:
-	; No idea what this is
-	XOR	A		; Setup return value of 0
-	RET			; and done
-;
-;
-;
-SLOWCPU:
-	LD A,(Z180)	; Z180 base I/O port
-	CP 00FFh		; Check for no value
-	RET Z		; Bail out if no value
-	ADD A,001Eh	; Apply offset of CMR register
-	LD C,A		; And put it in C
-	LD B,0		; MSB for 16-bit I/O
-	IN A,(C)	; Get current value
-	LD (CMRSAV),A	; Save it to restore later
-	XOR A		; Go slow
-	OUT (C),A	; And update CMR
-	INC C		; Now point to CCR register
-	IN A,(C)	; Get current value
-	LD (CCRSAV),A	; Save it to restore later
-	XOR A		; Go slow
-	OUT (C),A	; And update CCR
-	RET
-;
-;
-;
-NORMCPU:
-	LD A,(Z180)	; Z180 base I/O port
-	CP 00FFh		; Check for no value
-	RET Z		; Bail out if no value
-	ADD A,001Eh	; Apply offset of CMR register
-	LD C,A		; And put it in C
-	LD B,0		; MSB for 16-bit I/O
-	LD A,(CMRSAV)	; Get original CMR value
-	OUT (C),A	; And update CMR
-	INC C		; Now point to CCR register
-	LD A,(CCRSAV)	; Get original CCR value
-	OUT (C),A	; And update CCR
-	RET
-;
-;
-;
-SLOWIO:
-	LD A,(Z180)	; Z180 base I/O port
-	CP 00FFh		; Check for no value
-	RET Z		; Bail out if no value
-	ADD A,0032h	; Apply offset of DCNTL register
-	LD C,A		; And put it in C
-	LD B,0		; MSB for 16-bit I/O
-	IN A,(C)	; Get current value
-	LD (DCSAV),A	; Save it to restore later
-	OR 00110000b	; Force slow operation (I/O W/S=3)
-	OUT (C),A	; And update DCNTL
-	RET
-;
-;
-;
-NORMIO:
-	LD A,(Z180)	; Z180 base I/O port
-	CP 00FFh		; Check for no value
-	RET Z		; Bail out if no value
-	ADD A,0032h	; Apply offset of DCNTL register
-	LD C,A		; And put it in C
-	LD B,0		; MSB for 16-bit I/O
-	LD A,(DCSAV)	; Get saved DCNTL value
-	OUT (C),A	; And restore it
-	RET
 ;
 ; Print character in A without destroying any registers
 ;
@@ -668,10 +458,6 @@ ADDHLA:
 	INC	H
 	RET
 ;
-ERRBIO:	; Invalid BIOS or version
-	LD	DE,MSGBIO
-	JR	ERR
-;
 ERRPLT:	; Invalid BIOS or version
 	LD	DE,MSGPLT
 	JR	ERR
@@ -750,9 +536,9 @@ CFGTBL:	;	PLT	RSEL	RDAT	RIN	Z180	ACR
 CFG:		; ACTIVE CONFIG VALUES (FROM SELECTED CFGTBL ENTRY)
 PLT		DB	0	; RomWBW HBIOS platform id
 PORTS:
-RSEL		DB	0	; Register selection port
-RDAT		DB	0	; Register data port
-RIN		DB	0	; Register input port
+RSEL		DB	00D8h	; Register selection port
+RDAT		DB	00D0h	; Register data port
+RIN		DB	00D8h	; Register input port
 Z180		DB	0	; Z180 base I/O port
 ACR		DB	0	; Aux Ctrl Reg I/O port on SCG
 DESC		DW	0	; Hardware description string adr
@@ -770,13 +556,13 @@ FILTYP		DB	0	; Sound file type (TYPPT2, TYPPT3, TYPMYM)
 TMP		DB	0	; work around use of undocumented Z80
 ;
 		
-MSGBAN		DB	"Tune Player for RomWBW v2.5, 29-Mar-2020",0
-MSGUSE		DB	"Copyright (C) 2020, Wayne Warthen, GNU GPL v3",13,10
+MSGBAN		DB	"Tune Player for CP/M",0
+MSGUSE		DB	"CP/M port Copyright (C) 2020 by Andrzej Borsuk "
+		DB	"(GPLv3)",13,10
+		DB	"Copyright (C) 2020, Wayne Warthen, GNU GPL v3",13,10
 		DB	"PTxPlayer Copyright (C) 2004-2007 S.V.Bulba",13,10
 		DB	"MYMPlay by Marq/Lieves!Tuore",13,10,13,10
 		DB	"Usage: TUNE <filename>.[PT2|PT3|MYM]",0
-MSGBIO		DB	"Incompatible BIOS or version, "
-		DB	"HBIOS v", '0' + RMJ, ".", '0' + RMN, " required",0
 MSGPLT		DB	"Hardware error, system not supported!",0
 MSGHW		DB	"Hardware error, sound chip not detected!",0
 MSGNAM		DB	"Sound filename invalid (must be .PT2, .PT3, or .MYM)",0
@@ -2175,7 +1961,6 @@ ENDIF
 
 IF WBW
 	DI
-	CALL SLOWIO
 	LD DE,(PORTS)	; D := RDAT, E := RSEL
 	XOR A		; start with reg 0
 	LD C,E		; point to address port
@@ -2194,7 +1979,6 @@ LOUT	OUT (C),A	; select register
 	LD C,D		; select data port
 	OUT (C),A	; write value to register 13
 LOUT2
-	CALL NORMIO
 	EI
 	RET		; And done
 ENDIF
@@ -2566,7 +2350,6 @@ upsg:	ld	a,(WMOD)	; if WMOD = 1, CPU is z180
 	or	a		; set flags
 	jr	z,upsg1		; skip z180 stuff
 	di
-	call	SLOWIO
 
 upsg1:	ld	hl,(psource)
 	ld	de,(PORTS)	; E := RSEL, D := RDAT
@@ -2601,7 +2384,7 @@ notrig: ld      hl,(psource)
         dec     a
         ld      (played),a
 
-endint:	call	NORMIO
+endint:
 	ei	
 	ret			; And done
 ;
