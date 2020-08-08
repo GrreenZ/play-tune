@@ -47,11 +47,15 @@
 ;   2019-11-21 [WBW] Added table-driven configuration
 ;   2020-02-11 [WBW] Made hardware config & detection more flexible
 ;   2020-03-29 [WBW] Fix error in Z180 I/O W/S bracketing
+;   2020-08-07 [CPM] No crossassembler needed (SLR Assembler)
 ;   2020-08-07 [CPM] Butchered HBIOS calls and related code
+;   2020-08-08 [CPM] Rewriten message printing and unused code elimination
 ;_______________________________________________________________________________
 ;
 ; ToDo:
-;   *) Make it configurable
+;   *) Display tune description (PT3)
+;   *) Make it configurable (CPU speed, and IO ports)
+;   *) Proper memory allocation (HEAPEND)
 ;_______________________________________________________________________________
 ;
 ;===============================================================================
@@ -75,8 +79,6 @@ TYPMYM		EQU	3		; FILTYP value for MYM sound file
 	LD	DE,MSGBAN		; Point to banner message
 	CALL	PRTSTR			; Print message
 ;		
-; Check BIOS and version REMOVED!
-CFGSEL:
 SETDLY:	
 	; CPU speed / compute quark delay factor
 	LD	HL, 7372/2		; Do it, CPU speed in KHz / 2
@@ -205,10 +207,6 @@ PTXLP	CALL	START+5			; Play one quark
 	JR	NZ,EXIT			; Bail out when done playing
 	CALL	GETKEY			; Check for keypress
 	JR	NZ,EXIT			; Abort on keypress
-	;LD	A,13			; Back to
-	;CALL	PRTCHR			; ... start of line
-	;LD	A,(CurPos)		; Get current position
-	;CALL	PRTHEX			; ... and display it
 	CALL	WAITQ			; Wait one quark period
 	JR	PTXLP			; Loop for next quark
 ;
@@ -217,8 +215,6 @@ gomym	ld	hl,(QDLY)		; Get basic quark delay
 	ld	de,125			; Avg TS / quark = ~5000, so 125 delay loops
 	sbc	hl,de			; Adjust for file type
 	ld	(QDLY),hl		; Save updated quark delay factor
-	;ld	bc,(rows)
-	;call	PRTHEXWORD
 	call	mymini			; Initialize player
         call    extract         	; Unpack the first fragment
 mymlp	call	extract
@@ -233,7 +229,6 @@ waitvb	call	WAITQ
         ld      (psource),iy
         ld      a,FRAG
         ld      (played),a
-	;call	PRTDOT
 	jr	mymlp
 ;	
 EXIT	CALL	START+8			; Mute audio
@@ -281,24 +276,6 @@ PRTCHR:
 	POP	BC
 	RET
 ;
-PRTDOT:
-;
-	; shortcut to print a dot preserving all regs
-	PUSH	AF		; save af
-	LD	A,'.'		; load dot char
-	CALL	PRTCHR		; print it
-	POP	AF		; restore af
-	RET			; done
-;
-PRTCR:
-;
-	; shortcut to print a dot preserving all regs
-	PUSH	AF		; save af
-	LD	A,13		; load CR value
-	CALL	PRTCHR		; print it
-	POP	AF		; restore af
-	RET			; done
-;
 ; Print a '$' terminated string at (DE) without destroying any registers
 ;
 PRTSTR:
@@ -314,136 +291,6 @@ PRTSTR:
 	POP	AF
 	RET	
 ;
-; Print the value in A in hex without destroying any registers
-;
-PRTHEX:
-	PUSH	AF		; save AF
-	PUSH	DE		; save DE
-	CALL	HEXASCII	; convert value in A to hex chars in DE
-	LD	A,D		; get the high order hex char
-	CALL	PRTCHR		; print it
-	LD	A,E		; get the low order hex char
-	CALL	PRTCHR		; print it
-	POP	DE		; restore DE
-	POP	AF		; restore AF
-	RET			; done
-;
-; print the hex word value in bc
-;
-PRTHEXWORD:
-	PUSH	AF
-	LD	A,B
-	CALL	PRTHEX
-	LD	A,C
-	CALL	PRTHEX 
-	POP	AF
-	RET
-;
-; print the hex dword value in de:hl
-;
-PRTHEX32:
-	PUSH	BC
-	PUSH	DE
-	POP	BC
-	CALL	PRTHEXWORD
-	PUSH	HL
-	POP	BC
-	CALL	PRTHEXWORD
-	POP	BC
-	RET
-;
-; Convert binary value in A to ascii hex characters in DE
-;
-HEXASCII:
-	LD	D,A		; save A in D
-	CALL	HEXCONV		; convert low nibble of A to hex
-	LD	E,A		; save it in E
-	LD	A,D		; get original value back
-	RLCA			; rotate high order nibble to low bits
-	RLCA
-	RLCA
-	RLCA
-	CALL	HEXCONV		; convert nibble
-	LD	D,A		; save it in D
-	RET			; done
-;
-; Convert low nibble of A to ascii hex
-;
-HEXCONV:
-	AND	000Fh	     	; low nibble only
-	ADD	A,0090h
-	DAA	
-	ADC	A,0040h
-	DAA	
-	RET
-;
-; Print value of A or HL in decimal with leading zero suppression
-; Use prtdecb for A or prtdecw for HL
-;
-PRTDECB:
-	PUSH	HL
-	LD	H,0
-	LD	L,A
-	CALL	PRTDECW		; print it
-	POP	HL
-	RET
-;
-PRTDECW:
-	PUSH	AF
-	PUSH	BC
-	PUSH	DE
-	PUSH	HL
-	CALL	PRTDEC0
-	POP	HL
-	POP	DE
-	POP	BC
-	POP	AF
-	RET
-;
-PRTDEC0:
-	LD	E,'0'
-	LD	BC,-10000
-	CALL	PRTDEC1
-	LD	BC,-1000
-	CALL	PRTDEC1
-	LD	BC,-100
-	CALL	PRTDEC1
-	LD	C,-10
-	CALL	PRTDEC1
-	LD	E,0
-	LD	C,-1
-PRTDEC1:
-	LD	A,'0' - 1
-PRTDEC2:
-	INC	A
-	ADD	HL,BC
-	JR	C,PRTDEC2
-	SBC	HL,BC
-	CP	E
-	RET	Z
-	LD	E,0
-	CALL	PRTCHR
-	RET
-;
-; ADD HL,A
-;
-;   A REGISTER IS DESTROYED!
-;
-ADDHLA:
-	ADD	A,L
-	LD	L,A
-	RET	NC
-	INC	H
-	RET
-;
-ERRPLT:	; Invalid BIOS or version
-	LD	DE,MSGPLT
-	JR	ERR
-;
-ERRHW:	; Hardware error, sound chip not detected
-	LD	DE,MSGHW
-	JR	ERR
-;
 ERRCMD:	; Command error, display usage info
 	LD	DE,MSGUSE
 	JR	ERR
@@ -458,71 +305,21 @@ ERRFIL:	; Error opening sound file
 ;
 ERRSIZ:	; Sound file is too large for memory
 	LD	DE,MSGSIZ
-	JR	ERR
+	;JR	ERR
 ;
 ERR:	; print error string and return error signal
-ERR1:	; without the leading crlf
 	CALL	PRTSTR		; print error string
-ERR2:	; without the string
 	JP	0		; fast exit
 ;
-; CONFIG TABLE, ENTRY ORDER MATCHES HBIOS PLATFORM ID
-;
-CFGSIZ	EQU	8
-;
-CFGTBL:	;	PLT	RSEL	RDAT	RIN	Z180	ACR
-	;	DESC
-	DB	0001h,	009Ah,	009Bh,	009Ah,	00FFh,	009Ch	; SBC W/ SCG
-	DW	HWSTR_SCG	
-;	
-	DB	0004h,	009Ch,	009Dh,	009Ch,	0040h,	00FFh	; N8 W/ ONBOARD PSG
-	DW	HWSTR_N8	
-;	
-	DB	0005h,	009Ah,	009Bh,	009Ah,	0040h,	009Ch	; MK4 W/ SCG
-	DW	HWSTR_SCG	
-;	
-	DB	0007h,	00D8h,	00D0h,	00D8h,	00FFh,	00FFh	; RCZ80 W/ RC SOUND MODULE (EB)
-	DW	HWSTR_RCEB	
-;	
-	DB	0007h,	00D1h,	00D0h,	00D0h,	00FFh,	00FFh	; RCZ80 W/ RC SOUND MODULE (MF)
-	DW	HWSTR_RCMF
-;	
-	DB	0008h,	0068h,	0060h,	0068h,	00C0h,	00FFh	; RCZ180 W/ RC SOUND MODULE (EB)
-	DW	HWSTR_RCEB	
-;	
-	DB	0008h,	0061h,	0060h,	0060h,	00C0h,	00FFh	; RCZ180 W/ RC SOUND MODULE (MF)
-	DW	HWSTR_RCMF
-;
-	DB	0009h,	00D8h,	00D0h,	00D8h,	00FFh,	00FFh	; EZZ80 W/ RC SOUND MODULE (EB)
-	DW	HWSTR_RCEB	
-;
-	DB	0009h,	00D1h,	00D0h,	00D0h,	00FFh,	00FFh	; EZZ80 W/ RC SOUND MODULE (EB)
-	DW	HWSTR_RCMF
-;
-	DB	000Ah,	0068h,	0060h,	0068h,	00C0h,	00FFh	; SCZ180 W/ RC SOUND MODULE (EB)
-	DW	HWSTR_RCEB
-;
-	DB	000Ah,	0061h,	0060h,	0060h,	00C0h,	00FFh	; SCZ180 W/ RC SOUND MODULE (MF)
-	DW	HWSTR_RCMF
-;
-	DB	00FFh					; END OF TABLE MARKER
 ;
 CFG:		; ACTIVE CONFIG VALUES (FROM SELECTED CFGTBL ENTRY)
-PLT		DB	0	; RomWBW HBIOS platform id
 PORTS:
 RSEL		DB	00D8h	; Register selection port
 RDAT		DB	00D0h	; Register data port
 RIN		DB	00D8h	; Register input port
-Z180		DB	0	; Z180 base I/O port
-ACR		DB	0	; Aux Ctrl Reg I/O port on SCG
-DESC		DW	0	; Hardware description string adr
 ;
-CURPLT		DB	0	; Current platform id reported by HBIOS
 QDLY		DW	0	; quark delay factor
 WMOD		DB	0	; delay mode, non-zero to use timer
-DCSAV		DB	0	; for saving original Z180 DCNTL value
-CCRSAV		DB	0	; for saving original Z180 CCR value
-CMRSAV		DB	0	; for saving original Z180 CMR value
 ;
 DMA		DW	0	; Working DMA
 FILTYP		DB	0	; Sound file type (TYPPT2, TYPPT3, TYPMYM)
@@ -530,27 +327,17 @@ FILTYP		DB	0	; Sound file type (TYPPT2, TYPPT3, TYPMYM)
 TMP		DB	0	; work around use of undocumented Z80
 ;
 		
-MSGBAN		DB	"Tune Player for CP/M",13,10,"$"
-MSGUSE		DB	"CP/M port Copyright (C) 2020 by Andrzej Borsuk "
-		DB	"(GPLv3)",13,10
+MSGBAN		DB	"Tune Player for CP/M 08/08/2020",13,10,"$"
+MSGUSE		DB	"Copyright (C) 2020, Andrzej Borsuk, GNU GPLv3",13,10
 		DB	"Copyright (C) 2020, Wayne Warthen, GNU GPL v3",13,10
 		DB	"PTxPlayer Copyright (C) 2004-2007 S.V.Bulba",13,10
 		DB	"MYMPlay by Marq/Lieves!Tuore",13,10,13,10
-		DB	"Usage: TUNE <filename>.[PT2|PT3|MYM]$"
-MSGPLT		DB	"Hardware error, system not supported!$"
-MSGHW		DB	"Hardware error, sound chip not detected!$"
-MSGNAM		DB	"Sound filename invalid (must be .PT2, .PT3, or .MYM)$"
-MSGFIL		DB	"Sound file not found!$"
-MSGSIZ		DB	"Sound file too large to load!$"
-MSGTIM		DB	", timer mode$"
-MSGDLY		DB	", delay mode$"
-MSGPLY		DB	"Playing...$"
-MSGEND		DB	" Done$"
-;
-HWSTR_SCG	DB	"SCG ECB Board",0
-HWSTR_N8	DB	"N8 Onboard Sound",0
-HWSTR_RCEB	DB	"RC2014 Sound Module (EB)",0
-HWSTR_RCMF	DB	"RC2014 Sound Module (MF)",0
+		DB	"Usage: PLAY <filename>.[PT2|PT3|MYM]$"
+MSGNAM		DB	"Filename invalid (must be .PT2, .PT3, or .MYM)$"
+MSGFIL		DB	"File not found!$"
+MSGSIZ		DB	"File too large!$"
+MSGPLY		DB	   "Playing...$"
+MSGEND		DB	13,"          $"
 ;
 ;===============================================================================
 ; PTx Player Routines
@@ -568,7 +355,7 @@ Release:	EQU	"1"
 ;1) Version of ROUT (ZX or MSX standards)
 ZX		EQU	0
 MSX		EQU	0
-WBW		EQU	1
+CPM		EQU	1
 ;2) Current position counter at (START+11)
 CurPosCounter	EQU	0
 ;3) Allow channels allocation bits at (START+10)
@@ -1933,8 +1720,7 @@ LOUT	OUT (C),A
 	RET
 ENDIF
 
-IF WBW
-	DI
+IF CPM
 	LD DE,(PORTS)	; D := RDAT, E := RSEL
 	XOR A		; start with reg 0
 	LD C,E		; point to address port
@@ -1953,7 +1739,6 @@ LOUT	OUT (C),A	; select register
 	LD C,D		; select data port
 	OUT (C),A	; write value to register 13
 LOUT2
-	EI
 	RET		; And done
 ENDIF
 	
@@ -2320,11 +2105,7 @@ zero:   djnz    onebit
         ret
 
 ; *** Update PSG registers
-upsg:	ld	a,(WMOD)	; if WMOD = 1, CPU is z180
-	or	a		; set flags
-	jr	z,upsg1		; skip z180 stuff
-	di
-
+upsg:
 upsg1:	ld	hl,(psource)
 	ld	de,(PORTS)	; E := RSEL, D := RDAT
         xor     a
@@ -2359,7 +2140,6 @@ notrig: ld      hl,(psource)
         ld      (played),a
 
 endint:
-	ei	
 	ret			; And done
 ;
 ; *** Program data
