@@ -24,6 +24,5 @@ https://github.com/wwarthen/RomWBW/blob/master/Source/Apps/Tune/Tune.asm
 The original program is heavily dependent on RomWBW's HBIOS and hardware auto-detection, making it completly non-working on plain CP/M hardware.
 
 * Code semi-automatically translated to dialect understood by SLR Assembler
-  (compiled binaries are identical, except leading zeros)
-* Removal of dependencies on RomWBW (HBIOS calls, Z180 code, hardware autodetection)
-
+* Removal of dependencies on RomWBW (HBIOS calls -- including hardware autodetection and Z180 code)
+* Rewriten message printing. Instead of printing text character by character it now uses BDOS WRITESTR.

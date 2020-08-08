@@ -72,7 +72,6 @@ TYPMYM		EQU	3		; FILTYP value for MYM sound file
 ;
 	ORG	000100h
 ;
-	CALL	CRLF
 	LD	DE,MSGBAN		; Point to banner message
 	CALL	PRTSTR			; Print message
 ;		
@@ -173,11 +172,8 @@ _LDX	LD	C,16			; CPM Close File function
 	CALL	BDOS			; Do it
 ;		
 	; Play loop	
-	CALL	CRLF2			; Formatting
 	LD	DE,MSGPLY		; Playing message
 	CALL	PRTSTR			; Print message
-	;CALL	CRLF2			; Formatting
-	;CALL	SLOWCPU
 	LD	A,(FILTYP)		; Get file type
 	CP	TYPPT2			; PT2?
 	JR	Z,GOPT2			; If so, do it
@@ -241,11 +237,8 @@ waitvb	call	WAITQ
 	jr	mymlp
 ;	
 EXIT	CALL	START+8			; Mute audio
-	;CALL	NORMCPU
-	;CALL	CRLF2			; Formatting
 	LD	DE,MSGEND		; Completion message
 	CALL	PRTSTR			; Print message
-	CALL	CRLF			; Formatting
 	JP	0			; Exit the easy way
 ;
 ; Wait for quark play time.  Can use hardware timer if
@@ -281,7 +274,7 @@ PRTCHR:
 	PUSH	DE
 	PUSH	HL
 	LD	E,A		; character to print in E
-	LD	C,0002h		; BDOS function to output a character
+	LD	C,2		; BDOS function to output a character
 	CALL	BDOS		; do it
 	POP	HL		; restore registers
 	POP	DE
@@ -306,21 +299,19 @@ PRTCR:
 	POP	AF		; restore af
 	RET			; done
 ;
-; Print a zero terminated string at (DE) without destroying any registers
+; Print a '$' terminated string at (DE) without destroying any registers
 ;
 PRTSTR:
-	PUSH	DE
-;
-PRTSTR1:
-	LD	A,(DE)		; get next char
-	OR	A
-	JR	Z,PRTSTR2
-	CALL	PRTCHR
-	INC	DE
-	JR	PRTSTR1
-;
-PRTSTR2:
-	POP	DE		; restore registers
+	PUSH	AF
+	PUSH	BC
+	;PUSH	DE		; string is already here
+	PUSH	HL
+	LD	C,9		; BDOS print string$
+	CALL	BDOS
+	POP	HL
+	;POP	DE
+	POP	BC
+	POP	AF
 	RET	
 ;
 ; Print the value in A in hex without destroying any registers
@@ -434,19 +425,6 @@ PRTDEC2:
 	CALL	PRTCHR
 	RET
 ;
-; Start a new line
-;
-CRLF2:
-	CALL	CRLF		; two of them
-CRLF:
-	PUSH	AF		; preserve AF
-	LD	A,13		; <CR>
-	CALL	PRTCHR		; print it
-	LD	A,10		; <LF>
-	CALL	PRTCHR		; print it
-	POP	AF		; restore AF
-	RET
-;
 ; ADD HL,A
 ;
 ;   A REGISTER IS DESTROYED!
@@ -483,13 +461,9 @@ ERRSIZ:	; Sound file is too large for memory
 	JR	ERR
 ;
 ERR:	; print error string and return error signal
-	CALL	CRLF2		; print newline
-;
 ERR1:	; without the leading crlf
 	CALL	PRTSTR		; print error string
-;
 ERR2:	; without the string
-	CALL	CRLF		; print newline
 	JP	0		; fast exit
 ;
 ; CONFIG TABLE, ENTRY ORDER MATCHES HBIOS PLATFORM ID
@@ -556,22 +530,22 @@ FILTYP		DB	0	; Sound file type (TYPPT2, TYPPT3, TYPMYM)
 TMP		DB	0	; work around use of undocumented Z80
 ;
 		
-MSGBAN		DB	"Tune Player for CP/M",0
+MSGBAN		DB	"Tune Player for CP/M",13,10,"$"
 MSGUSE		DB	"CP/M port Copyright (C) 2020 by Andrzej Borsuk "
 		DB	"(GPLv3)",13,10
 		DB	"Copyright (C) 2020, Wayne Warthen, GNU GPL v3",13,10
 		DB	"PTxPlayer Copyright (C) 2004-2007 S.V.Bulba",13,10
 		DB	"MYMPlay by Marq/Lieves!Tuore",13,10,13,10
-		DB	"Usage: TUNE <filename>.[PT2|PT3|MYM]",0
-MSGPLT		DB	"Hardware error, system not supported!",0
-MSGHW		DB	"Hardware error, sound chip not detected!",0
-MSGNAM		DB	"Sound filename invalid (must be .PT2, .PT3, or .MYM)",0
-MSGFIL		DB	"Sound file not found!",0
-MSGSIZ		DB	"Sound file too large to load!",0
-MSGTIM		DB	", timer mode",0
-MSGDLY		DB	", delay mode",0
-MSGPLY		DB	"Playing...",0
-MSGEND		DB	" Done",0
+		DB	"Usage: TUNE <filename>.[PT2|PT3|MYM]$"
+MSGPLT		DB	"Hardware error, system not supported!$"
+MSGHW		DB	"Hardware error, sound chip not detected!$"
+MSGNAM		DB	"Sound filename invalid (must be .PT2, .PT3, or .MYM)$"
+MSGFIL		DB	"Sound file not found!$"
+MSGSIZ		DB	"Sound file too large to load!$"
+MSGTIM		DB	", timer mode$"
+MSGDLY		DB	", delay mode$"
+MSGPLY		DB	"Playing...$"
+MSGEND		DB	" Done$"
 ;
 HWSTR_SCG	DB	"SCG ECB Board",0
 HWSTR_N8	DB	"N8 Onboard Sound",0
