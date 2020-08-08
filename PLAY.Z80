@@ -50,13 +50,21 @@
 ;   2020-08-07 [CPM] No crossassembler needed (SLR Assembler)
 ;   2020-08-07 [CPM] Butchered HBIOS calls and related code
 ;   2020-08-08 [CPM] Rewriten message printing and unused code elimination
+;   2020-08-08 [CPM] Display tune description (PT3)
+;   2020-08-08 [CPM] CPU speed, and IO ports configuration bellow
 ;_______________________________________________________________________________
 ;
 ; ToDo:
-;   *) Display tune description (PT3)
-;   *) Make it configurable (CPU speed, and IO ports)
 ;   *) Proper memory allocation (HEAPEND)
 ;_______________________________________________________________________________
+;
+;===============================================================================
+; CONFIG
+;===============================================================================
+CPU_KHZ		EQU	7372	; CPU speed in KHz
+IO_RSEL		EQU	00D8h	; Register selection port
+IO_RDAT		EQU	00D0h	; Register data port
+HEAPEND		EQU	00A000h	; End of heap storage
 ;
 ;===============================================================================
 ; Main program
@@ -66,8 +74,6 @@ RESTART		EQU	000000h		; CP/M restart vector
 BDOS		EQU	000005h		; BDOS invocation vector
 ;	
 FCB		EQU	005Ch		; Location of default FCB
-;
-HEAPEND		EQU	00A000h		; End of heap storage
 ;
 TYPPT2		EQU	1		; FILTYP value for PT2 sound file
 TYPPT3		EQU	2		; FILTYP value for PT3 sound file
@@ -81,7 +87,7 @@ TYPMYM		EQU	3		; FILTYP value for MYM sound file
 ;		
 SETDLY:	
 	; CPU speed / compute quark delay factor
-	LD	HL, 7372/2		; Do it, CPU speed in KHz / 2
+	LD	HL, CPU_KHZ/2		; Do it, CPU speed in KHz / 2
 	LD	(QDLY),HL		; Save result as quark delay factor
 ;
 	; Clear heap storage
@@ -340,9 +346,8 @@ ERR:	; print error string and return error signal
 ;
 CFG:		; ACTIVE CONFIG VALUES (FROM SELECTED CFGTBL ENTRY)
 PORTS:
-RSEL		DB	00D8h	; Register selection port
-RDAT		DB	00D0h	; Register data port
-RIN		DB	00D8h	; Register input port
+RSEL		DB	IO_RSEL	; Register selection port
+RDAT		DB	IO_RDAT	; Register data port
 ;
 QDLY		DW	0	; quark delay factor
 WMOD		DB	0	; delay mode, non-zero to use timer
