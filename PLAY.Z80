@@ -172,6 +172,23 @@ _LD	LD	HL,(DMA)		; Get load address
 _LDX	LD	C,16			; CPM Close File function
 	LD	DE,FCB			; FCB
 	CALL	BDOS			; Do it
+;
+; Display file information
+;
+FINFO:
+	LD	A, (FILTYP)
+	CP	TYPPT3
+	JR	NZ, FINF_E
+	LD	HL, MDLADDR	; First line
+	LD	B, 63
+	CALL	PRT_HLB
+	LD	DE, EOL
+	CALL	PRTSTR
+	LD	B, 36		; Second line
+	CALL	PRT_HLB
+	LD	DE, EOL
+	CALL	PRTSTR
+FINF_E:
 ;		
 	; Play loop	
 	LD	DE,MSGPLY		; Playing message
@@ -291,6 +308,15 @@ PRTSTR:
 	POP	AF
 	RET	
 ;
+; Print B characters pointed by HL
+;
+PRT_HLB:
+	LD	A,(HL)
+	INC	HL
+	CALL	PRTCHR
+	DJNZ	PRT_HLB
+	RET
+;
 ERRCMD:	; Command error, display usage info
 	LD	DE,MSGUSE
 	JR	ERR
@@ -327,7 +353,8 @@ FILTYP		DB	0	; Sound file type (TYPPT2, TYPPT3, TYPMYM)
 TMP		DB	0	; work around use of undocumented Z80
 ;
 		
-MSGBAN		DB	"Tune Player for CP/M 08/08/2020",13,10,"$"
+MSGBAN		DB	"Tune Player for CP/M 08/08/2020"
+EOL		DB	13,10,"$"
 MSGUSE		DB	"Copyright (C) 2020, Andrzej Borsuk, GNU GPLv3",13,10
 		DB	"Copyright (C) 2020, Wayne Warthen, GNU GPL v3",13,10
 		DB	"PTxPlayer Copyright (C) 2004-2007 S.V.Bulba",13,10
@@ -336,8 +363,8 @@ MSGUSE		DB	"Copyright (C) 2020, Andrzej Borsuk, GNU GPLv3",13,10
 MSGNAM		DB	"Filename invalid (must be .PT2, .PT3, or .MYM)$"
 MSGFIL		DB	"File not found!$"
 MSGSIZ		DB	"File too large!$"
-MSGPLY		DB	   "Playing...$"
-MSGEND		DB	13,"          $"
+MSGPLY		DB	   "playing $"
+MSGEND		DB	13,"        $"
 ;
 ;===============================================================================
 ; PTx Player Routines

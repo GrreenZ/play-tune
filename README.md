@@ -25,4 +25,5 @@ The original program is heavily dependent on RomWBW's HBIOS and hardware auto-de
 
 * Code semi-automatically translated to dialect understood by SLR Assembler (No crosscompiler needed).
 * Removal of dependencies on RomWBW (HBIOS calls -- including hardware autodetection and Z180 code).
+* Displays information about played file (PT3 only)
 * It's smaller
