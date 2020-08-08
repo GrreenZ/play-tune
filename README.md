@@ -25,3 +25,5 @@ The original program is heavily dependent on RomWBW's HBIOS and hardware auto-de
 
 * Code semi-automatically translated to dialect understood by SLR Assembler
   (compiled binaries are identical, except leading zeros)
+* Removal of dependencies on RomWBW (HBIOS calls, Z180 code, hardware autodetection)
+
