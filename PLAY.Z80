@@ -11,7 +11,7 @@
 ;_______________________________________________________________________________
 ;
 ; Usage:
-;   TUNE <filename>
+;   PLAY <filename>
 ;
 ;   <filename> of sound file to load and play
 ;   Filename extension determines file type (.PT2, .PT3, or .MYM)
@@ -42,7 +42,8 @@
 ;_______________________________________________________________________________
 ;
 ; ToDo:
-;   1) Add an option to play file in a continuous loop?
+;   *) Remove HBIOS deps
+;   *) Make it configurable
 ;_______________________________________________________________________________
 ;
 ;===============================================================================
@@ -62,7 +63,7 @@ BF_SYSGET	EQU	00F8h		; HBIOS: SYSGET function
 ;
 FCB		EQU	005Ch		; Location of default FCB
 ;
-HEAPEND		EQU	00C000h		; End of heap storage
+HEAPEND		EQU	00A000h		; End of heap storage
 ;
 TYPPT2		EQU	1		; FILTYP value for PT2 sound file
 TYPPT3		EQU	2		; FILTYP value for PT3 sound file
